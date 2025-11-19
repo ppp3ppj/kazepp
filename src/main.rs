@@ -1,6 +1,5 @@
 // Ultra Simple Typing Practice
 use rand::prelude::IndexedRandom;
-// Ultra Simple Typing Practice
 use convert_case::{Case, Casing};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
@@ -157,7 +156,7 @@ fn run(app: &mut App) -> Result<(), io::Error> {
 
         if !app.got_name {
             // Page 1: Name entry
-            print!("\r\n  Typing Practice\r\n\r\n");
+            print!("\r\n  Kezepp: Naming convention typing practice\r\n\r\n");
             print!("  What is your name?\r\n");
             print!("  > {}", app.username);
             print!("\r\n\r\n");
