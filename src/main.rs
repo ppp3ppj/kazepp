@@ -3,7 +3,7 @@ use rand::prelude::IndexedRandom;
 // Ultra Simple Typing Practice
 use convert_case::{Case, Casing};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, Clear, ClearType},
     cursor,
@@ -77,6 +77,19 @@ impl App {
     fn check(&mut self) -> bool {
         self.input.trim() == self.hint
     }
+
+    fn reset_score(&mut self) {
+        self.score = 0;
+    }
+
+    fn restart(&mut self) {
+        self.score = 0;
+        self.got_name = false;
+        self.got_mode = false;
+        self.mode = None;
+        self.username.clear();
+        self.input.clear();
+    }
 }
 
 fn main() -> Result<(), io::Error> {
@@ -101,6 +114,8 @@ fn run(app: &mut App) -> Result<(), io::Error> {
             print!("\r\n  Typing Practice\r\n\r\n");
             print!("  What is your name?\r\n");
             print!("  > {}", app.username);
+            print!("\r\n\r\n");
+            print!("  Q - Quit");
             io::stdout().flush()?;
         } else if !app.got_mode {
             // Page 2: Mode selection
@@ -108,10 +123,11 @@ fn run(app: &mut App) -> Result<(), io::Error> {
             print!("  Select difficulty:\r\n\r\n");
             print!("  1. Normal (with hint)\r\n");
             print!("  2. Hard (no hint - lose resets score!)\r\n\r\n");
-            print!("  Press 1 or 2 to select");
+            print!("  Press 1 or 2 to select\r\n\r\n");
+            print!("  Ctrl+S - Restart | Q - Quit");
             io::stdout().flush()?;
         } else {
-            // Page 3: Practice - MUCH CLEARER UI
+            // Page 3: Practice
             print!("\r\n\r\n");
             print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
             print!("  Words:  {}\r\n\r\n", app.source);
@@ -127,6 +143,8 @@ fn run(app: &mut App) -> Result<(), io::Error> {
             print!("\r\n\r\n");
             print!("  Score: {}\r\n", app.score);
             print!("\r\n");
+            print!("  Ctrl+R - Reset Score | Ctrl+S - Restart | Q - Quit");
+            print!("\r\n");
             io::stdout().flush()?;
         }
 
@@ -135,6 +153,36 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                 continue;
             }
 
+            // Handle Ctrl shortcuts
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                match key.code {
+                    KeyCode::Char('r') => {
+                        // Ctrl+R: Reset score only
+                        if app.got_mode {
+                            app.reset_score();
+                            app.new_challenge();
+
+                            clear_screen()?;
+                            print!("\r\n\r\n");
+                            print!("  Score reset to 0!\r\n\r\n");
+                            print!("  Press any key to continue...");
+                            io::stdout().flush()?;
+
+                            event::read()?;
+                        }
+                    }
+                    KeyCode::Char('s') => {
+                        // Ctrl+S: Full restart
+                        if app.got_name {
+                            app.restart();
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            // Normal key handling
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => break,
                 KeyCode::Char(c) => {
