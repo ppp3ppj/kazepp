@@ -157,7 +157,7 @@ fn render_full_screen(app: &App) -> io::Result<()> {
     let mut buffer = String::with_capacity(512);
 
     if !app.got_name {
-        buffer.push_str("\r\n  Typing Practice\r\n\r\n");
+        buffer.push_str("\r\n Kezepp: Naming convention typing practice\r\n\r\n");
         buffer.push_str("  What is your name?\r\n");
         let _ = write!(buffer, "  > {}", app.username);
         buffer.push_str("\r\n\r\n");
