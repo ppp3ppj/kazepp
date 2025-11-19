@@ -1,11 +1,11 @@
 // Ultra Simple Typing Practice
 use rand::prelude::IndexedRandom;
+// Ultra Simple Typing Practice - Fixed Row Positioning
 use convert_case::{Case, Casing};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
-    execute,
+    execute, cursor,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, Clear, ClearType},
-    cursor,
 };
 use rand::{seq::SliceRandom, Rng};
 use std::io::{self, Write};
@@ -150,86 +150,128 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn run(app: &mut App) -> Result<(), io::Error> {
-    loop {
-        // Build entire screen in buffer first
-        let mut buffer = String::new();
+fn render_full_screen(app: &App) -> io::Result<()> {
+    let mut buffer = String::new();
 
-        if !app.got_name {
-            // Page 1: Name entry
-            buffer.push_str("\r\n  Typing Practice\r\n\r\n");
-            buffer.push_str("  What is your name?\r\n");
-            buffer.push_str(&format!("  > {}", app.username));
-            buffer.push_str("\r\n\r\n");
-            buffer.push_str("  Ctrl+Q - Quit");
-        } else if !app.got_mode {
-            // Page 2: Mode selection
-            buffer.push_str(&format!("\r\n  Hello, {}!\r\n\r\n", app.username));
-            buffer.push_str("  Select difficulty:\r\n\r\n");
-            buffer.push_str("  1. Normal (with hint)\r\n");
-            buffer.push_str("  2. Hard (no hint - lose resets score!)\r\n\r\n");
-            buffer.push_str("  Press 1 or 2 to select\r\n\r\n");
-            buffer.push_str("  Ctrl+S - Restart | Ctrl+Q - Quit");
-        } else {
-            // Page 3: Practice
-            buffer.push_str("\r\n\r\n");
-            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-            buffer.push_str(&format!("  Words:  {}\r\n\r\n", app.source));
-            buffer.push_str(&format!("  Task:   Convert to {}\r\n\r\n", app.style_name));
-            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+    if !app.got_name {
+        buffer.push_str("\r\n  Typing Practice\r\n\r\n");
+        buffer.push_str("  What is your name?\r\n");
+        buffer.push_str(&format!("  > {}", app.username));
+        buffer.push_str("\r\n\r\n");
+        buffer.push_str("  Ctrl+Q - Quit");
+    } else if !app.got_mode {
+        buffer.push_str(&format!("\r\n  Hello, {}!\r\n\r\n", app.username));
+        buffer.push_str("  Select difficulty:\r\n\r\n");
+        buffer.push_str("  1. Normal (with hint)\r\n");
+        buffer.push_str("  2. Hard (no hint - lose resets score!)\r\n\r\n");
+        buffer.push_str("  Press 1 or 2 to select\r\n\r\n");
+        buffer.push_str("  Ctrl+S - Restart | Ctrl+Q - Quit");
+    } else {
+        buffer.push_str("\r\n\r\n");
+        buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+        buffer.push_str(&format!("  Words:  {}\r\n\r\n", app.source));
+        buffer.push_str(&format!("  Task:   Convert to {}\r\n\r\n", app.style_name));
+        buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
 
-            // Show hint only in Normal mode
-            if matches!(app.mode, Some(GameMode::Normal)) {
-                buffer.push_str(&format!("  Hint:   {}\r\n\r\n", app.hint));
-            }
-
-            buffer.push_str(&format!("  Answer: {}", app.input));
-            buffer.push_str("\r\n\r\n");
-            buffer.push_str(&format!("  Score: {}\r\n", app.score));
-            buffer.push_str("\r\n");
-            buffer.push_str("  Ctrl+R - Reset Score | Ctrl+S - Restart | Ctrl+Q - Quit");
-            buffer.push_str("\r\n");
+        if matches!(app.mode, Some(GameMode::Normal)) {
+            buffer.push_str(&format!("  Hint:   {}\r\n\r\n", app.hint));
         }
 
-        // Clear and draw everything at once - SMOOTH!
-        clear_screen()?;
-        print!("{}", buffer);
-        io::stdout().flush()?;
+        buffer.push_str(&format!("  Answer: {}", app.input));
+        buffer.push_str("\r\n\r\n");
+        buffer.push_str(&format!("  Score: {}\r\n", app.score));
+        buffer.push_str("\r\n");
+        buffer.push_str("  Ctrl+R - Reset Score | Ctrl+S - Restart | Ctrl+Q - Quit");
+        buffer.push_str("\r\n");
+    }
+
+    execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+    print!("{}", buffer);
+    io::stdout().flush()?;
+    Ok(())
+}
+
+fn update_input_line(app: &App) -> io::Result<()> {
+    let input_text = if !app.got_name {
+        format!("  > {}", app.username)
+    } else if app.got_mode {
+        format!("  Answer: {}", app.input)
+    } else {
+        return Ok(());
+    };
+
+    // Calculate row position - FIXED!
+    let row = if !app.got_name {
+        4  // Row 0-3: title + "What is your name?", Row 4: input line
+    } else if app.got_mode {
+        // Row 0: blank
+        // Row 1: blank
+        // Row 2: ━━━━
+        // Row 3: blank
+        // Row 4: Words:
+        // Row 5: blank
+        // Row 6: Task:
+        // Row 7: blank
+        // Row 8: ━━━━
+        // Row 9: blank
+        // Row 10: Hint: (Normal mode only)
+        // Row 11: blank (Normal mode only)
+        // Row 12: Answer: (Normal mode) OR Row 10: Answer: (Hard mode)
+
+        if matches!(app.mode, Some(GameMode::Normal)) {
+            12  // Normal mode - with hint - Answer is at row 12
+        } else {
+            10  // Hard mode - no hint - Answer is at row 10
+        }
+    } else {
+        return Ok(());
+    };
+
+    // Move to input line, clear it, write new content
+    execute!(
+        io::stdout(),
+        cursor::MoveTo(0, row),
+        Clear(ClearType::CurrentLine)
+    )?;
+    print!("{}", input_text);
+    io::stdout().flush()?;
+    Ok(())
+}
+
+fn run(app: &mut App) -> Result<(), io::Error> {
+    let mut needs_full_redraw = true;
+
+    loop {
+        if needs_full_redraw {
+            render_full_screen(app)?;
+            needs_full_redraw = false;
+        }
 
         if let Event::Key(key) = event::read()? {
             if key.kind != KeyEventKind::Press {
                 continue;
             }
 
-            // Handle Ctrl shortcuts
             if key.modifiers.contains(KeyModifiers::CONTROL) {
                 match key.code {
-                    KeyCode::Char('q') => {
-                        // Ctrl+Q: Quit
-                        break;
-                    }
+                    KeyCode::Char('q') => break,
                     KeyCode::Char('r') => {
-                        // Ctrl+R: Reset score
                         if app.got_mode {
                             app.reset_score();
                             app.new_challenge();
 
-                            let mut buffer = String::new();
-                            buffer.push_str("\r\n\r\n");
-                            buffer.push_str("  Score reset to 0!\r\n\r\n");
-                            buffer.push_str("  Press any key to continue...");
-
-                            clear_screen()?;
-                            print!("{}", buffer);
+                            execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+                            print!("\r\n\r\n  Score reset to 0!\r\n\r\n  Press any key to continue...");
                             io::stdout().flush()?;
 
                             event::read()?;
+                            needs_full_redraw = true;
                         }
                     }
                     KeyCode::Char('s') => {
-                        // Ctrl+S: Full restart
                         if app.got_name {
                             app.restart();
+                            needs_full_redraw = true;
                         }
                     }
                     _ => {}
@@ -237,46 +279,51 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                 continue;
             }
 
-            // Normal key handling
             match key.code {
-                KeyCode::Esc => break,  // Keep Esc as alternative quit
+                KeyCode::Esc => break,
                 KeyCode::Char(c) => {
                     if !app.got_name {
                         app.username.push(c);
+                        update_input_line(app)?;
                     } else if !app.got_mode {
                         match c {
                             '1' => {
                                 app.mode = Some(GameMode::Normal);
                                 app.got_mode = true;
                                 app.new_challenge();
+                                needs_full_redraw = true;
                             }
                             '2' => {
                                 app.mode = Some(GameMode::Hard);
                                 app.got_mode = true;
                                 app.new_challenge();
+                                needs_full_redraw = true;
                             }
                             _ => {}
                         }
                     } else {
                         app.input.push(c);
+                        update_input_line(app)?;
                     }
                 }
                 KeyCode::Backspace => {
                     if !app.got_name {
                         app.username.pop();
+                        update_input_line(app)?;
                     } else if app.got_mode {
                         app.input.pop();
+                        update_input_line(app)?;
                     }
                 }
                 KeyCode::Enter => {
                     if !app.got_name {
                         if !app.username.is_empty() {
                             app.got_name = true;
+                            needs_full_redraw = true;
                         }
                     } else if app.got_mode {
                         let correct = app.check();
 
-                        // Build result screen in buffer
                         let mut buffer = String::new();
 
                         if correct {
@@ -314,7 +361,7 @@ fn run(app: &mut App) -> Result<(), io::Error> {
 
                         buffer.push_str("  Press Enter to continue...");
 
-                        clear_screen()?;
+                        execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
                         print!("{}", buffer);
                         io::stdout().flush()?;
 
@@ -327,6 +374,7 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                         }
 
                         app.new_challenge();
+                        needs_full_redraw = true;
                     }
                 }
                 _ => {}
@@ -334,8 +382,4 @@ fn run(app: &mut App) -> Result<(), io::Error> {
         }
     }
     Ok(())
-}
-
-fn clear_screen() -> Result<(), io::Error> {
-    execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))
 }
