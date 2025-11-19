@@ -1,14 +1,15 @@
 // Ultra Simple Typing Practice
 use rand::prelude::IndexedRandom;
-// Ultra Simple Typing Practice - Fixed Row Positioning
 use convert_case::{Case, Casing};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute, cursor,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, Clear, ClearType},
+    style::Print,
 };
-use rand::{seq::SliceRandom, Rng};
-use std::io::{self, Write};
+use rand::{seq::SliceRandom, rngs::ThreadRng, Rng};
+use std::io;
+use std::fmt::Write as FmtWrite;
 
 const WORDS: &[&str] = &[
     // Basic
@@ -85,6 +86,7 @@ struct App {
     got_name: bool,
     got_mode: bool,
     mode: Option<GameMode>,
+    rng: ThreadRng,
 }
 
 impl App {
@@ -99,20 +101,21 @@ impl App {
             got_name: false,
             got_mode: false,
             mode: None,
+            rng: rand::thread_rng(),
         }
     }
 
     fn new_challenge(&mut self) {
-        let mut rng = rand::thread_rng();
-        let word_count = rng.random_range(2..=4);
-        let mut words = Vec::new();
+        let word_count = self.rng.random_range(2..=4);
+        let mut words = Vec::with_capacity(word_count);
+
         for _ in 0..word_count {
-            if let Some(word) = WORDS.choose(&mut rng) {
+            if let Some(word) = WORDS.choose(&mut self.rng) {
                 words.push(*word);
             }
         }
 
-        let (style_name, case) = STYLES.choose(&mut rng).unwrap();
+        let (style_name, case) = STYLES.choose(&mut self.rng).unwrap();
         self.source = words.join(" ");
         self.hint = self.source.to_case(*case);
         self.style_name = style_name.to_string();
@@ -151,16 +154,16 @@ fn main() -> Result<(), io::Error> {
 }
 
 fn render_full_screen(app: &App) -> io::Result<()> {
-    let mut buffer = String::new();
+    let mut buffer = String::with_capacity(512);
 
     if !app.got_name {
         buffer.push_str("\r\n  Typing Practice\r\n\r\n");
         buffer.push_str("  What is your name?\r\n");
-        buffer.push_str(&format!("  > {}", app.username));
+        let _ = write!(buffer, "  > {}", app.username);
         buffer.push_str("\r\n\r\n");
         buffer.push_str("  Ctrl+Q - Quit");
     } else if !app.got_mode {
-        buffer.push_str(&format!("\r\n  Hello, {}!\r\n\r\n", app.username));
+        let _ = write!(buffer, "\r\n  Hello, {}!\r\n\r\n", app.username);
         buffer.push_str("  Select difficulty:\r\n\r\n");
         buffer.push_str("  1. Normal (with hint)\r\n");
         buffer.push_str("  2. Hard (no hint - lose resets score!)\r\n\r\n");
@@ -169,72 +172,56 @@ fn render_full_screen(app: &App) -> io::Result<()> {
     } else {
         buffer.push_str("\r\n\r\n");
         buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-        buffer.push_str(&format!("  Words:  {}\r\n\r\n", app.source));
-        buffer.push_str(&format!("  Task:   Convert to {}\r\n\r\n", app.style_name));
+        let _ = write!(buffer, "  Words:  {}\r\n\r\n", app.source);
+        let _ = write!(buffer, "  Task:   Convert to {}\r\n\r\n", app.style_name);
         buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
 
         if matches!(app.mode, Some(GameMode::Normal)) {
-            buffer.push_str(&format!("  Hint:   {}\r\n\r\n", app.hint));
+            let _ = write!(buffer, "  Hint:   {}\r\n\r\n", app.hint);
         }
 
-        buffer.push_str(&format!("  Answer: {}", app.input));
+        let _ = write!(buffer, "  Answer: {}", app.input);
         buffer.push_str("\r\n\r\n");
-        buffer.push_str(&format!("  Score: {}\r\n", app.score));
+        let _ = write!(buffer, "  Score: {}\r\n", app.score);
         buffer.push_str("\r\n");
         buffer.push_str("  Ctrl+R - Reset Score | Ctrl+S - Restart | Ctrl+Q - Quit");
         buffer.push_str("\r\n");
     }
 
-    execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-    print!("{}", buffer);
-    io::stdout().flush()?;
+    execute!(
+        io::stdout(),
+        Clear(ClearType::All),
+        cursor::MoveTo(0, 0),
+        Print(&buffer)
+    )?;
     Ok(())
 }
 
 fn update_input_line(app: &App) -> io::Result<()> {
-    let input_text = if !app.got_name {
-        format!("  > {}", app.username)
+    let mut input_text = String::with_capacity(128);
+
+    if !app.got_name {
+        let _ = write!(input_text, "  > {}", app.username);
     } else if app.got_mode {
-        format!("  Answer: {}", app.input)
+        let _ = write!(input_text, "  Answer: {}", app.input);
     } else {
         return Ok(());
-    };
+    }
 
-    // Calculate row position - FIXED!
     let row = if !app.got_name {
-        4  // Row 0-3: title + "What is your name?", Row 4: input line
+        4
     } else if app.got_mode {
-        // Row 0: blank
-        // Row 1: blank
-        // Row 2: ━━━━
-        // Row 3: blank
-        // Row 4: Words:
-        // Row 5: blank
-        // Row 6: Task:
-        // Row 7: blank
-        // Row 8: ━━━━
-        // Row 9: blank
-        // Row 10: Hint: (Normal mode only)
-        // Row 11: blank (Normal mode only)
-        // Row 12: Answer: (Normal mode) OR Row 10: Answer: (Hard mode)
-
-        if matches!(app.mode, Some(GameMode::Normal)) {
-            12  // Normal mode - with hint - Answer is at row 12
-        } else {
-            10  // Hard mode - no hint - Answer is at row 10
-        }
+        if matches!(app.mode, Some(GameMode::Normal)) { 12 } else { 10 }
     } else {
         return Ok(());
     };
 
-    // Move to input line, clear it, write new content
     execute!(
         io::stdout(),
         cursor::MoveTo(0, row),
-        Clear(ClearType::CurrentLine)
+        Clear(ClearType::CurrentLine),
+        Print(&input_text)
     )?;
-    print!("{}", input_text);
-    io::stdout().flush()?;
     Ok(())
 }
 
@@ -260,9 +247,15 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                             app.reset_score();
                             app.new_challenge();
 
-                            execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-                            print!("\r\n\r\n  Score reset to 0!\r\n\r\n  Press any key to continue...");
-                            io::stdout().flush()?;
+                            let mut buffer = String::with_capacity(128);
+                            buffer.push_str("\r\n\r\n  Score reset to 0!\r\n\r\n  Press any key to continue...");
+
+                            execute!(
+                                io::stdout(),
+                                Clear(ClearType::All),
+                                cursor::MoveTo(0, 0),
+                                Print(&buffer)
+                            )?;
 
                             event::read()?;
                             needs_full_redraw = true;
@@ -324,7 +317,7 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                     } else if app.got_mode {
                         let correct = app.check();
 
-                        let mut buffer = String::new();
+                        let mut buffer = String::with_capacity(512);
 
                         if correct {
                             app.score += 1;
@@ -332,19 +325,19 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                             buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
                             buffer.push_str("  ✓ CORRECT!\r\n\r\n");
                             buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                            buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
-                            buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
-                            buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
-                            buffer.push_str(&format!("  Score: {}\r\n\r\n", app.score));
+                            let _ = write!(buffer, "  Style:      {}\r\n", app.style_name);
+                            let _ = write!(buffer, "  Answer:     {}\r\n", app.hint);
+                            let _ = write!(buffer, "  You typed:  {}\r\n\r\n", app.input);
+                            let _ = write!(buffer, "  Score: {}\r\n\r\n", app.score);
                         } else {
                             if matches!(app.mode, Some(GameMode::Hard)) {
                                 buffer.push_str("\r\n\r\n");
                                 buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
                                 buffer.push_str("  ✗ YOU LOSE!\r\n\r\n");
                                 buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
-                                buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
-                                buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
+                                let _ = write!(buffer, "  Style:      {}\r\n", app.style_name);
+                                let _ = write!(buffer, "  Answer:     {}\r\n", app.hint);
+                                let _ = write!(buffer, "  You typed:  {}\r\n\r\n", app.input);
                                 buffer.push_str("  Score reset to 0\r\n\r\n");
                                 app.score = 0;
                             } else {
@@ -352,18 +345,21 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                                 buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
                                 buffer.push_str("  ✗ Wrong\r\n\r\n");
                                 buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
-                                buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
-                                buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
-                                buffer.push_str(&format!("  Score: {}\r\n\r\n", app.score));
+                                let _ = write!(buffer, "  Style:      {}\r\n", app.style_name);
+                                let _ = write!(buffer, "  Answer:     {}\r\n", app.hint);
+                                let _ = write!(buffer, "  You typed:  {}\r\n\r\n", app.input);
+                                let _ = write!(buffer, "  Score: {}\r\n\r\n", app.score);
                             }
                         }
 
                         buffer.push_str("  Press Enter to continue...");
 
-                        execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-                        print!("{}", buffer);
-                        io::stdout().flush()?;
+                        execute!(
+                            io::stdout(),
+                            Clear(ClearType::All),
+                            cursor::MoveTo(0, 0),
+                            Print(&buffer)
+                        )?;
 
                         loop {
                             if let Event::Key(key) = event::read()? {
