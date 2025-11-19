@@ -12,9 +12,55 @@ use rand::{seq::SliceRandom, Rng};
 use std::io::{self, Write};
 
 const WORDS: &[&str] = &[
-    "user", "name", "email", "password", "database", "connection",
-    "function", "method", "class", "variable", "create", "read",
-    "update", "delete", "first", "last", "get", "set",
+    // Basic
+    "user", "name", "email", "password", "address", "phone", "message", "text",
+    "data", "file", "folder", "path", "link", "url", "image", "video",
+
+    // Database
+    "database", "table", "column", "row", "query", "record", "index", "key",
+    "primary", "foreign", "schema", "migration", "transaction", "connection",
+
+    // Programming
+    "function", "method", "class", "object", "variable", "constant", "array", "list",
+    "string", "number", "boolean", "null", "undefined", "type", "interface", "struct",
+
+    // Actions
+    "create", "read", "update", "delete", "insert", "select", "remove", "add",
+    "get", "set", "fetch", "send", "post", "put", "patch", "save",
+    "load", "download", "upload", "export", "import", "parse", "format", "convert",
+
+    // Web
+    "server", "client", "request", "response", "api", "endpoint", "route", "handler",
+    "controller", "model", "view", "service", "repository", "middleware", "filter",
+
+    // Common modifiers
+    "first", "last", "next", "previous", "current", "total", "count", "sum",
+    "max", "min", "average", "new", "old", "active", "inactive", "enabled",
+    "disabled", "visible", "hidden", "public", "private", "protected", "static",
+
+    // Status
+    "success", "error", "warning", "info", "pending", "complete", "failed", "valid",
+    "invalid", "required", "optional", "default", "custom", "standard", "temp",
+
+    // Common words
+    "item", "list", "array", "map", "set", "queue", "stack", "tree", "graph",
+    "node", "edge", "parent", "child", "root", "leaf", "level", "depth",
+
+    // Time related
+    "time", "date", "timestamp", "created", "updated", "deleted", "start", "end",
+    "duration", "timeout", "interval", "schedule", "delay", "expired",
+
+    // Auth & Security
+    "auth", "token", "session", "cookie", "login", "logout", "register", "verify",
+    "encrypt", "decrypt", "hash", "salt", "secure", "permission", "role", "access",
+
+    // Common operations
+    "sort", "filter", "search", "find", "match", "compare", "merge", "split",
+    "join", "concat", "append", "prepend", "replace", "remove", "clear", "reset",
+
+    // Config & Settings
+    "config", "setting", "option", "preference", "parameter", "argument", "value",
+    "flag", "toggle", "switch", "mode", "state", "status", "level", "priority",
 ];
 
 const STYLES: &[(&str, Case)] = &[
