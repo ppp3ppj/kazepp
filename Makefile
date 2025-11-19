@@ -34,6 +34,10 @@ build:
 	@echo "Building debug version..."
 	cargo build
 
+build-rel-win:
+	@echo "Building windows-x86_64 release version..."
+	cargo build --release --target x86_64-pc-windows-gnu
+
 # Build release version
 build-rel:
 	@echo "Building release version..."
