@@ -152,46 +152,49 @@ fn main() -> Result<(), io::Error> {
 
 fn run(app: &mut App) -> Result<(), io::Error> {
     loop {
-        clear_screen()?;
+        // Build entire screen in buffer first
+        let mut buffer = String::new();
 
         if !app.got_name {
             // Page 1: Name entry
-            print!("\r\n  Kezepp: Naming convention typing practice\r\n\r\n");
-            print!("  What is your name?\r\n");
-            print!("  > {}", app.username);
-            print!("\r\n\r\n");
-            print!("  Q - Quit");
-            io::stdout().flush()?;
+            buffer.push_str("\r\n  Typing Practice\r\n\r\n");
+            buffer.push_str("  What is your name?\r\n");
+            buffer.push_str(&format!("  > {}", app.username));
+            buffer.push_str("\r\n\r\n");
+            buffer.push_str("  Ctrl+Q - Quit");
         } else if !app.got_mode {
             // Page 2: Mode selection
-            print!("\r\n  Hello, {}!\r\n\r\n", app.username);
-            print!("  Select difficulty:\r\n\r\n");
-            print!("  1. Normal (with hint)\r\n");
-            print!("  2. Hard (no hint - lose resets score!)\r\n\r\n");
-            print!("  Press 1 or 2 to select\r\n\r\n");
-            print!("  Ctrl+S - Restart | Q - Quit");
-            io::stdout().flush()?;
+            buffer.push_str(&format!("\r\n  Hello, {}!\r\n\r\n", app.username));
+            buffer.push_str("  Select difficulty:\r\n\r\n");
+            buffer.push_str("  1. Normal (with hint)\r\n");
+            buffer.push_str("  2. Hard (no hint - lose resets score!)\r\n\r\n");
+            buffer.push_str("  Press 1 or 2 to select\r\n\r\n");
+            buffer.push_str("  Ctrl+S - Restart | Ctrl+Q - Quit");
         } else {
             // Page 3: Practice
-            print!("\r\n\r\n");
-            print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-            print!("  Words:  {}\r\n\r\n", app.source);
-            print!("  Task:   Convert to {}\r\n\r\n", app.style_name);
-            print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+            buffer.push_str("\r\n\r\n");
+            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+            buffer.push_str(&format!("  Words:  {}\r\n\r\n", app.source));
+            buffer.push_str(&format!("  Task:   Convert to {}\r\n\r\n", app.style_name));
+            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
 
             // Show hint only in Normal mode
             if matches!(app.mode, Some(GameMode::Normal)) {
-                print!("  Hint:   {}\r\n\r\n", app.hint);
+                buffer.push_str(&format!("  Hint:   {}\r\n\r\n", app.hint));
             }
 
-            print!("  Answer: {}", app.input);
-            print!("\r\n\r\n");
-            print!("  Score: {}\r\n", app.score);
-            print!("\r\n");
-            print!("  Ctrl+R - Reset Score | Ctrl+S - Restart | Q - Quit");
-            print!("\r\n");
-            io::stdout().flush()?;
+            buffer.push_str(&format!("  Answer: {}", app.input));
+            buffer.push_str("\r\n\r\n");
+            buffer.push_str(&format!("  Score: {}\r\n", app.score));
+            buffer.push_str("\r\n");
+            buffer.push_str("  Ctrl+R - Reset Score | Ctrl+S - Restart | Ctrl+Q - Quit");
+            buffer.push_str("\r\n");
         }
+
+        // Clear and draw everything at once - SMOOTH!
+        clear_screen()?;
+        print!("{}", buffer);
+        io::stdout().flush()?;
 
         if let Event::Key(key) = event::read()? {
             if key.kind != KeyEventKind::Press {
@@ -201,16 +204,23 @@ fn run(app: &mut App) -> Result<(), io::Error> {
             // Handle Ctrl shortcuts
             if key.modifiers.contains(KeyModifiers::CONTROL) {
                 match key.code {
+                    KeyCode::Char('q') => {
+                        // Ctrl+Q: Quit
+                        break;
+                    }
                     KeyCode::Char('r') => {
-                        // Ctrl+R: Reset score only
+                        // Ctrl+R: Reset score
                         if app.got_mode {
                             app.reset_score();
                             app.new_challenge();
 
+                            let mut buffer = String::new();
+                            buffer.push_str("\r\n\r\n");
+                            buffer.push_str("  Score reset to 0!\r\n\r\n");
+                            buffer.push_str("  Press any key to continue...");
+
                             clear_screen()?;
-                            print!("\r\n\r\n");
-                            print!("  Score reset to 0!\r\n\r\n");
-                            print!("  Press any key to continue...");
+                            print!("{}", buffer);
                             io::stdout().flush()?;
 
                             event::read()?;
@@ -229,7 +239,7 @@ fn run(app: &mut App) -> Result<(), io::Error> {
 
             // Normal key handling
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => break,
+                KeyCode::Esc => break,  // Keep Esc as alternative quit
                 KeyCode::Char(c) => {
                     if !app.got_name {
                         app.username.push(c);
@@ -266,46 +276,46 @@ fn run(app: &mut App) -> Result<(), io::Error> {
                     } else if app.got_mode {
                         let correct = app.check();
 
-                        clear_screen()?;
+                        // Build result screen in buffer
+                        let mut buffer = String::new();
 
                         if correct {
-                            // Correct answer
                             app.score += 1;
-                            print!("\r\n\r\n");
-                            print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                            print!("  ✓ CORRECT!\r\n\r\n");
-                            print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                            print!("  Style:      {}\r\n", app.style_name);
-                            print!("  Answer:     {}\r\n", app.hint);
-                            print!("  You typed:  {}\r\n\r\n", app.input);
-                            print!("  Score: {}\r\n\r\n", app.score);
+                            buffer.push_str("\r\n\r\n");
+                            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                            buffer.push_str("  ✓ CORRECT!\r\n\r\n");
+                            buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                            buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
+                            buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
+                            buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
+                            buffer.push_str(&format!("  Score: {}\r\n\r\n", app.score));
                         } else {
-                            // Wrong answer
                             if matches!(app.mode, Some(GameMode::Hard)) {
-                                // Hard mode: YOU LOSE - reset score
-                                print!("\r\n\r\n");
-                                print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                print!("  ✗ YOU LOSE!\r\n\r\n");
-                                print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                print!("  Style:      {}\r\n", app.style_name);
-                                print!("  Answer:     {}\r\n", app.hint);
-                                print!("  You typed:  {}\r\n\r\n", app.input);
-                                print!("  Score reset to 0\r\n\r\n");
+                                buffer.push_str("\r\n\r\n");
+                                buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                                buffer.push_str("  ✗ YOU LOSE!\r\n\r\n");
+                                buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                                buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
+                                buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
+                                buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
+                                buffer.push_str("  Score reset to 0\r\n\r\n");
                                 app.score = 0;
                             } else {
-                                // Normal mode: just wrong, keep score
-                                print!("\r\n\r\n");
-                                print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                print!("  ✗ Wrong\r\n\r\n");
-                                print!("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
-                                print!("  Style:      {}\r\n", app.style_name);
-                                print!("  Answer:     {}\r\n", app.hint);
-                                print!("  You typed:  {}\r\n\r\n", app.input);
-                                print!("  Score: {}\r\n\r\n", app.score);
+                                buffer.push_str("\r\n\r\n");
+                                buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                                buffer.push_str("  ✗ Wrong\r\n\r\n");
+                                buffer.push_str("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n");
+                                buffer.push_str(&format!("  Style:      {}\r\n", app.style_name));
+                                buffer.push_str(&format!("  Answer:     {}\r\n", app.hint));
+                                buffer.push_str(&format!("  You typed:  {}\r\n\r\n", app.input));
+                                buffer.push_str(&format!("  Score: {}\r\n\r\n", app.score));
                             }
                         }
 
-                        print!("  Press Enter to continue...");
+                        buffer.push_str("  Press Enter to continue...");
+
+                        clear_screen()?;
+                        print!("{}", buffer);
                         io::stdout().flush()?;
 
                         loop {
